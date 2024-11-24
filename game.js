@@ -28,6 +28,7 @@ class Game {
         this.score = 0;
         this.highScore = 0;
         this.gameOver = false;
+        this.gameStarted = false;
         
         // Load high score
         this.loadHighScore();
@@ -36,8 +37,8 @@ class Game {
         this.player = {
             x: 0,
             y: 0,
-            width: 40,  
-            height: 40, 
+            width: 40,
+            height: 40,
             velocityY: 0,
             velocityX: 0,
             isJumping: false,
@@ -45,15 +46,21 @@ class Game {
         };
         
         this.walls = [];
-        this.gravity = 0.4;  
+        this.gravity = 0.4;
         this.jumpForce = -12;
-        this.wallJumpForceY = -8;  
-        this.wallJumpForceX = 6;   
+        this.wallJumpForceY = -8;
+        this.wallJumpForceX = 6;
         
         // Initialize
         this.resize();
         this.setupEventListeners();
         this.reset();
+        
+        // Show start screen
+        document.getElementById('start-screen').classList.remove('hidden');
+        document.getElementById('game-over').classList.add('hidden');
+        
+        // Start animation loop
         this.gameLoop();
     }
 
@@ -84,47 +91,57 @@ class Game {
     resize() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
+        if (this.gameStarted) {
+            this.draw(); // Redraw if game is in progress
+        }
+    }
+
+    startGame() {
+        this.gameStarted = true;
+        this.gameOver = false;
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-over').classList.add('hidden');
+        this.reset();
     }
 
     reset() {
         this.score = 0;
         this.gameOver = false;
-        this.player.x = this.canvas.width / 2 - this.player.width / 2;  
-        this.player.y = this.canvas.height - 150;  
+        this.player.x = this.canvas.width / 2 - this.player.width / 2;
+        this.player.y = this.canvas.height - 150;
         this.player.velocityY = 0;
         this.player.velocityX = 0;
         this.walls = this.generateInitialWalls();
-        document.getElementById('game-over').classList.add('hidden');
         this.updateScoreDisplay();
     }
 
     generateInitialWalls() {
         const walls = [];
-        const wallWidth = 30;  
-        const spacing = 180;   
+        const wallWidth = 30;
+        const spacing = 180;
         
         for (let i = 0; i < 10; i++) {
             // Left wall
             walls.push({
-                x: this.canvas.width * 0.25,  
+                x: this.canvas.width * 0.25,
                 y: this.canvas.height - (i * spacing),
                 width: wallWidth,
-                height: 120  
+                height: 120
             });
             
             // Right wall
             walls.push({
-                x: this.canvas.width * 0.75 - wallWidth,  
+                x: this.canvas.width * 0.75 - wallWidth,
                 y: this.canvas.height - (i * spacing) - spacing/2,
                 width: wallWidth,
-                height: 120  
+                height: 120
             });
         }
         return walls;
     }
 
     handleTouch(e) {
-        if (this.gameOver) return;
+        if (!this.gameStarted || this.gameOver) return;
         
         const touch = e.touches[0];
         const touchX = touch.clientX;
@@ -141,8 +158,8 @@ class Game {
         
         // Check if player is near a wall
         const nearWall = this.walls.some(wall => 
-            this.player.x + this.player.width >= wall.x - 10 &&  
-            this.player.x <= wall.x + wall.width + 10 &&         
+            this.player.x + this.player.width >= wall.x - 10 &&
+            this.player.x <= wall.x + wall.width + 10 &&
             this.player.y + this.player.height >= wall.y &&
             this.player.y <= wall.y + wall.height
         );
@@ -151,12 +168,12 @@ class Game {
             this.player.velocityY = this.wallJumpForceY;
             this.player.velocityX = this.wallJumpForceX * direction;
             this.player.wallJumped = true;
-            setTimeout(() => this.player.wallJumped = false, 300);  
+            setTimeout(() => this.player.wallJumped = false, 300);
         }
     }
 
     update() {
-        if (this.gameOver) return;
+        if (!this.gameStarted || this.gameOver) return;
 
         // Apply gravity
         this.player.velocityY += this.gravity;
@@ -174,10 +191,10 @@ class Game {
                 // Horizontal collision
                 if (this.player.velocityX > 0) {
                     this.player.x = wall.x - this.player.width;
-                    this.player.velocityX *= -0.1;  
+                    this.player.velocityX *= -0.1;
                 } else if (this.player.velocityX < 0) {
                     this.player.x = wall.x + wall.width;
-                    this.player.velocityX *= -0.1;  
+                    this.player.velocityX *= -0.1;
                 }
             }
         });
@@ -185,11 +202,11 @@ class Game {
         // Screen boundaries with bounce
         if (this.player.x < 0) {
             this.player.x = 0;
-            this.player.velocityX *= -0.5;  
+            this.player.velocityX *= -0.5;
         }
         if (this.player.x + this.player.width > this.canvas.width) {
             this.player.x = this.canvas.width - this.player.width;
-            this.player.velocityX *= -0.5;  
+            this.player.velocityX *= -0.5;
         }
         
         // Update score based on height
@@ -214,15 +231,16 @@ class Game {
         // Check for game over
         if (this.player.y > this.canvas.height) {
             this.gameOver = true;
+            this.gameStarted = false;
             document.getElementById('game-over').classList.remove('hidden');
             document.getElementById('final-score').textContent = `${this.score} (High Score: ${this.highScore})`;
         }
     }
 
     generateMoreWalls() {
-        const wallWidth = 30;  
+        const wallWidth = 30;
         const lastWall = this.walls[this.walls.length - 1];
-        const spacing = 180;   
+        const spacing = 180;
         
         // Add new pair of walls
         this.walls.push({
@@ -282,7 +300,8 @@ class Game {
     setupEventListeners() {
         window.addEventListener('resize', () => this.resize());
         window.addEventListener('touchstart', (e) => this.handleTouch(e));
-        document.getElementById('restart-button').addEventListener('click', () => this.reset());
+        document.getElementById('start-button').addEventListener('click', () => this.startGame());
+        document.getElementById('restart-button').addEventListener('click', () => this.startGame());
     }
 }
 
