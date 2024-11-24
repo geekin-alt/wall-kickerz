@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="0; url=https://github.com/geekin-alt/wall-kickerz.git" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' telegram.org *.telegram.org; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' telegram.org *.telegram.org; img-src 'self' data: telegram.org *.telegram.org;">
     <title>Wall Jumper</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -12,6 +13,11 @@
         <canvas id="gameCanvas"></canvas>
         <div id="ui-overlay">
             <div id="score">Score: 0</div>
+            <div id="start-screen">
+                <h2>Wall Jumper</h2>
+                <p>Touch left/right side to jump between walls</p>
+                <button id="start-button">Start Game</button>
+            </div>
             <div id="game-over" class="hidden">
                 <h2>Game Over!</h2>
                 <p>Your Score: <span id="final-score">0</span></p>
