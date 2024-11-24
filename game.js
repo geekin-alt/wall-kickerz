@@ -2,19 +2,42 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 
+// Add fallback for testing outside Telegram
+if (!window.Telegram.WebApp) {
+    window.Telegram = {
+        WebApp: {
+            ready: () => {},
+            expand: () => {},
+            themeParams: {
+                bg_color: '#ffffff',
+                text_color: '#000000',
+                button_color: '#3390ec'
+            },
+            CloudStorage: {
+                getItem: (key) => Promise.resolve(null),
+                setItem: (key, value) => Promise.resolve()
+            }
+        }
+    };
+}
+
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.score = 0;
+        this.highScore = 0;
         this.gameOver = false;
+        
+        // Load high score
+        this.loadHighScore();
         
         // Game objects
         this.player = {
             x: 0,
             y: 0,
-            width: 30,
-            height: 30,
+            width: 40,  
+            height: 40, 
             velocityY: 0,
             velocityX: 0,
             isJumping: false,
@@ -22,16 +45,40 @@ class Game {
         };
         
         this.walls = [];
-        this.gravity = 0.5;
+        this.gravity = 0.4;  
         this.jumpForce = -12;
-        this.wallJumpForceY = -10;
-        this.wallJumpForceX = 8;
+        this.wallJumpForceY = -8;  
+        this.wallJumpForceX = 6;   
         
         // Initialize
         this.resize();
         this.setupEventListeners();
         this.reset();
         this.gameLoop();
+    }
+
+    async loadHighScore() {
+        try {
+            const savedScore = await tg.CloudStorage.getItem('highScore');
+            if (savedScore) {
+                this.highScore = parseInt(savedScore);
+                this.updateScoreDisplay();
+            }
+        } catch (error) {
+            console.log('Error loading high score:', error);
+        }
+    }
+
+    async saveHighScore() {
+        try {
+            await tg.CloudStorage.setItem('highScore', this.score.toString());
+        } catch (error) {
+            console.log('Error saving high score:', error);
+        }
+    }
+
+    updateScoreDisplay() {
+        document.getElementById('score').textContent = `Score: ${this.score} | High Score: ${this.highScore}`;
     }
 
     resize() {
@@ -42,35 +89,35 @@ class Game {
     reset() {
         this.score = 0;
         this.gameOver = false;
-        this.player.x = this.canvas.width / 2;
-        this.player.y = this.canvas.height - 100;
+        this.player.x = this.canvas.width / 2 - this.player.width / 2;  
+        this.player.y = this.canvas.height - 150;  
         this.player.velocityY = 0;
         this.player.velocityX = 0;
         this.walls = this.generateInitialWalls();
         document.getElementById('game-over').classList.add('hidden');
-        document.getElementById('score').textContent = 'Score: 0';
+        this.updateScoreDisplay();
     }
 
     generateInitialWalls() {
         const walls = [];
-        const wallWidth = 20;
-        const spacing = 200;
+        const wallWidth = 30;  
+        const spacing = 180;   
         
         for (let i = 0; i < 10; i++) {
             // Left wall
             walls.push({
-                x: this.canvas.width * 0.2,
+                x: this.canvas.width * 0.25,  
                 y: this.canvas.height - (i * spacing),
                 width: wallWidth,
-                height: 100
+                height: 120  
             });
             
             // Right wall
             walls.push({
-                x: this.canvas.width * 0.8 - wallWidth,
+                x: this.canvas.width * 0.75 - wallWidth,  
                 y: this.canvas.height - (i * spacing) - spacing/2,
                 width: wallWidth,
-                height: 100
+                height: 120  
             });
         }
         return walls;
@@ -94,8 +141,8 @@ class Game {
         
         // Check if player is near a wall
         const nearWall = this.walls.some(wall => 
-            this.player.x + this.player.width >= wall.x - 5 &&
-            this.player.x <= wall.x + wall.width + 5 &&
+            this.player.x + this.player.width >= wall.x - 10 &&  
+            this.player.x <= wall.x + wall.width + 10 &&         
             this.player.y + this.player.height >= wall.y &&
             this.player.y <= wall.y + wall.height
         );
@@ -104,7 +151,7 @@ class Game {
             this.player.velocityY = this.wallJumpForceY;
             this.player.velocityX = this.wallJumpForceX * direction;
             this.player.wallJumped = true;
-            setTimeout(() => this.player.wallJumped = false, 200);
+            setTimeout(() => this.player.wallJumped = false, 300);  
         }
     }
 
@@ -113,6 +160,9 @@ class Game {
 
         // Apply gravity
         this.player.velocityY += this.gravity;
+        
+        // Add air resistance
+        this.player.velocityX *= 0.98;
         
         // Update player position
         this.player.x += this.player.velocityX;
@@ -124,24 +174,36 @@ class Game {
                 // Horizontal collision
                 if (this.player.velocityX > 0) {
                     this.player.x = wall.x - this.player.width;
+                    this.player.velocityX *= -0.1;  
                 } else if (this.player.velocityX < 0) {
                     this.player.x = wall.x + wall.width;
+                    this.player.velocityX *= -0.1;  
                 }
-                this.player.velocityX *= 0.8; // Friction
             }
         });
         
-        // Screen boundaries
-        if (this.player.x < 0) this.player.x = 0;
+        // Screen boundaries with bounce
+        if (this.player.x < 0) {
+            this.player.x = 0;
+            this.player.velocityX *= -0.5;  
+        }
         if (this.player.x + this.player.width > this.canvas.width) {
             this.player.x = this.canvas.width - this.player.width;
+            this.player.velocityX *= -0.5;  
         }
         
         // Update score based on height
         const newScore = Math.floor(Math.abs(this.player.y) / 100);
         if (newScore > this.score) {
             this.score = newScore;
-            document.getElementById('score').textContent = `Score: ${this.score}`;
+            this.updateScoreDisplay();
+            
+            // Update high score if needed
+            if (this.score > this.highScore) {
+                this.highScore = this.score;
+                this.saveHighScore();
+                this.updateScoreDisplay();
+            }
         }
         
         // Generate new walls as player climbs
@@ -153,28 +215,28 @@ class Game {
         if (this.player.y > this.canvas.height) {
             this.gameOver = true;
             document.getElementById('game-over').classList.remove('hidden');
-            document.getElementById('final-score').textContent = this.score;
+            document.getElementById('final-score').textContent = `${this.score} (High Score: ${this.highScore})`;
         }
     }
 
     generateMoreWalls() {
-        const wallWidth = 20;
+        const wallWidth = 30;  
         const lastWall = this.walls[this.walls.length - 1];
-        const spacing = 200;
+        const spacing = 180;   
         
         // Add new pair of walls
         this.walls.push({
-            x: this.canvas.width * 0.2,
+            x: this.canvas.width * 0.25,
             y: lastWall.y - spacing,
             width: wallWidth,
-            height: 100
+            height: 120
         });
         
         this.walls.push({
-            x: this.canvas.width * 0.8 - wallWidth,
+            x: this.canvas.width * 0.75 - wallWidth,
             y: lastWall.y - spacing/2,
             width: wallWidth,
-            height: 100
+            height: 120
         });
         
         // Remove walls that are far below
